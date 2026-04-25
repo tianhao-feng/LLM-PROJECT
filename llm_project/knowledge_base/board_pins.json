@@ -1,0 +1,86 @@
+{
+  "board": "Zynq 7020 CLG400 reference mapping",
+  "part": "xc7z020clg400-2",
+  "default_iostandard": "LVCMOS33",
+  "default_clock_period_ns": 20.0,
+  "ports": {
+    "clk": {
+      "pin": "K17",
+      "clock": true,
+      "clock_name": "sys_clk_pin"
+    },
+    "rst_n": {
+      "pin": "M19"
+    },
+    "en": {
+      "pin": "N18"
+    },
+    "led_out[0]": {
+      "pin": "M14"
+    },
+    "led_out[1]": {
+      "pin": "M15"
+    },
+    "led_out[2]": {
+      "pin": "K16"
+    },
+    "led_out[3]": {
+      "pin": "J16"
+    },
+    "led_out[4]": {
+      "pin": "N15"
+    },
+    "led_out[5]": {
+      "pin": "P16"
+    },
+    "led_out[6]": {
+      "pin": "R16"
+    },
+    "led_out[7]": {
+      "pin": "T17"
+    },
+    "count[0]": {
+      "pin": "M14"
+    },
+    "count[1]": {
+      "pin": "M15"
+    },
+    "count[2]": {
+      "pin": "K16"
+    },
+    "count[3]": {
+      "pin": "J16"
+    },
+    "overflow": {
+      "pin": "N15"
+    },
+    "load": {
+      "pin": "P16",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "up_down": {
+      "pin": "R16",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "load_value[0]": {
+      "pin": "T17",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "load_value[1]": {
+      "pin": "L14",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "load_value[2]": {
+      "pin": "L15",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "load_value[3]": {
+      "pin": "P15",
+      "note": "Extended example mapping; replace with the board switch/button pin for hardware use."
+    },
+    "underflow": {
+      "pin": "U17",
+      "note": "Extended example mapping; replace with a board LED pin for hardware use."
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[Xilinx 7 Series FPGA Configuration User Guide]
+        1. 概述：7系列 FPGA 的配置数据(Bitstream)存储在内部 SRAM 中。
+        2. 配置接口信号定义：
+           - PROGRAM_B: 低电平有效，用于强制清空 FPGA 内部配置并重启加载过程。
+           - INIT_B: 开漏输出，当 FPGA 准备好接收配置数据时被拉高；如果加载过程中发生 CRC 错误，会拉低报错。
+           - DONE: 开漏输出，当 Bitstream 成功加载并启动完成时，此引脚被拉高。
+           - CCLK: 配置时钟输入（在 Slave 模式下）或输出（在 Master 模式下）。
+           - DIN: 串行配置数据输入端口。
+        3. 配置加载流程：
+           (1) 上电复位 (Power-On Reset)
+           (2) 初始化 (Initialization)：INIT_B 拉低清空内存，完成后拉高。
+           (3) 数据加载 (Bitstream Loading)：通过 CCLK 和 DIN 读入数据。
+           (4) 启动 (Startup)：DONE 信号拉高，FPGA 进入用户工作模式。

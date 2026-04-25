@@ -1,0 +1,26 @@
+{
+  "status": "succeeded",
+  "stage": "complete",
+  "design": {
+    "top_module": "counter_4bit_top",
+    "testbench_module": "tb_counter_4bit_top"
+  },
+  "required_artifacts": [
+    "readme",
+    "testbench",
+    "constraints",
+    "bitstream",
+    "vivado_script",
+    "vivado_log",
+    "vivado_journal",
+    "vivado_project",
+    "utilization_report",
+    "timing_report",
+    "power_report"
+  ],
+  "reports": {
+    "timing": {
+      "constraints_met": true
+    }
+  }
+}

@@ -1,0 +1,73 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/_tmp/
+codex_test_tmp/
+.venv/
+venv/
+env/
+
+# AutoFPGA generated runtime data
+runs/
+projects/
+vector_db/
+fpga_workspace/vector_db/
+**/runs/
+**/run_manifest.json
+**/xdc_rejected_reason.txt
+**/tb_rejected_last.v
+**/tb_rejected_reason.txt
+
+# Vivado generated files
+.Xil/
+**/.Xil/
+*.jou
+*.log
+*.pb
+*.str
+*.dmp
+*.wdb
+*.wcfg
+*.xpr
+*.cache/
+*.hw/
+*.runs/
+*.sim/
+*.ip_user_files/
+*.gen/
+*.srcs/
+**/vivado_out/
+**/build_output/
+**/vivado_*.backup.log
+**/vivado_*.backup.jou
+
+# FPGA implementation artifacts and reports
+*.bit
+*.dcp
+*.rpt
+*.rpx
+*.vds
+*.vdi
+*.wdf
+*.wpc
+usage_statistics_webtalk.*
+webtalk*.xml
+
+# Simulation work products
+**/sim_work/
+**/work/
+**/transcript
+**/xsim*.jou
+**/xsim*.log
+**/xvlog*.log
+**/xvlog*.pb
+**/xsim_run.tcl
+
+# Local IDE/editor noise
+.idea/
+.vscode/
+*.swp
+*.swo
