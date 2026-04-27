@@ -21,5 +21,12 @@
   "embedding_model": "nomic-embed-text",
   "embedding_base_url": "http://localhost:11434",
   "embedding_timeout": 30,
-  "user_requirement": "创建一个 Verilog-2001 FPGA 工程，实现一个 4 位同步计数器。"
+  "rag_top_k": 5,
+  "rag_candidate_k": 20,
+  "rag_reindex": false,
+  "rag_clear_index": false,
+  "rag_show_sources": true,
+  "rag_dry_run": false,
+  "rag_sources": ["datasheets", "knowledge_base"],
+  "user_requirement": "讲一下BUFR"
 }

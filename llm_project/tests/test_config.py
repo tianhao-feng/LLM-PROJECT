@@ -36,6 +36,10 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(ctx.iverilog_timeout, 60)
             self.assertEqual(ctx.modelsim_timeout, 60)
             self.assertEqual(ctx.vivado_timeout, 7200)
+            self.assertEqual(ctx.rag_top_k, 5)
+            self.assertEqual(ctx.rag_candidate_k, 20)
+            self.assertFalse(ctx.rag_dry_run)
+            self.assertEqual(ctx.rag_sources, ["datasheets", "knowledge_base"])
 
     def test_build_context_accepts_tool_timeouts(self):
         tmp = reset_tmp("config_tool_timeouts")

@@ -84,6 +84,27 @@ AutoFPGA keeps a curated local subset of the public `QingquanYao/xilinx-skill` g
 
 RAG indexing now scans both `datasheets/` and `knowledge_base/` recursively, so `.md`, `.txt`, and `.pdf` knowledge files under `knowledge_base/xilinx_skill/` can be retrieved by concept/table queries.
 
+The RAG index stores file hashes and chunk metadata. Modified files are re-indexed automatically, deleted files are removed from the vector DB, and answers print ranked sources by default. Retrieval combines vector similarity with keyword matches so exact FPGA terms such as `create_clock`, `PACKAGE_PIN`, `UCIO-1`, and `CFGBVS` can still rank well.
+
+Useful RAG debugging options:
+
+```powershell
+python -m autofpga --rag-reindex --rag-top-k 8 --requirement "create_clock 怎么写？"
+python -m autofpga --rag-clear-index --rag-source knowledge_base --requirement "Vivado build flow 是什么？"
+python -m autofpga --rag-hide-sources --requirement "解释 XDC PACKAGE_PIN"
+python -m autofpga --rag-query "create_clock 怎么写？" --rag-dry-run
+python -m autofpga --rag-dump-index
+```
+
+For retrieval debugging, bypass AUTO routing and run RAG directly:
+
+```powershell
+python -m autofpga --rag-query "create_clock 怎么写？" --rag-skill CONCEPT
+python -m autofpga --rag-query "列出配置电压相关表格" --rag-skill TABLE --rag-source datasheets
+```
+
+When `--rag-dry-run` is used, AutoFPGA prints retrieved chunks and sources without calling the LLM. `--rag-dump-index` prints indexed files, chunk counts, hashes, and metadata. Normal RAG answers are checked for source-number citations and whether technical terms in the answer appear in retrieved chunks; if either check fails, AutoFPGA prints a warning and repeats the retrieved sources for review.
+
 ## Runtime Output
 
 Generated data is kept out of the source tree:
@@ -155,6 +176,25 @@ Run the unit tests:
 
 ```powershell
 python -m unittest discover -s tests
+```
+
+Run the focused RAG retrieval checks after changing chunking, ranking, or source metadata:
+
+```powershell
+python -m unittest tests.test_rag tests.test_rag_quality
+```
+
+Run the real local-document retrieval checks:
+
+```powershell
+python -m unittest tests.test_rag_real_docs
+```
+
+Run the optional Chroma smoke test only when you want to exercise the real vector DB path:
+
+```powershell
+set AUTOFPGARAG_CHROMA_SMOKE=1
+python -m unittest tests.test_rag_chroma_smoke
 ```
 
 Before using a board for bitstream generation, verify every `knowledge_base/board_pins.json` mapping against the board schematic or vendor constraints. The default mapping is a development reference, not proof that the connected board uses those exact pins.

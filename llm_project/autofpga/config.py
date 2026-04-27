@@ -38,6 +38,13 @@ class RuntimeContext:
     embedding_api_key_env: str
     embedding_api_key: str
     embedding_timeout: int
+    rag_top_k: int
+    rag_candidate_k: int
+    rag_reindex: bool
+    rag_clear_index: bool
+    rag_show_sources: bool
+    rag_dry_run: bool
+    rag_sources: list
     kb_dir: str
     datasheet_dir: str
     vector_db_dir: str
@@ -91,6 +98,13 @@ DEFAULT_CONFIG = {
     "embedding_api_key_env": "",
     "embedding_api_key": "",
     "embedding_timeout": 30,
+    "rag_top_k": 5,
+    "rag_candidate_k": 20,
+    "rag_reindex": False,
+    "rag_clear_index": False,
+    "rag_show_sources": True,
+    "rag_dry_run": False,
+    "rag_sources": ["datasheets", "knowledge_base"],
 }
 
 
@@ -123,6 +137,13 @@ def build_context(
     embedding_api_key_env=None,
     embedding_api_key=None,
     embedding_timeout=None,
+    rag_top_k=None,
+    rag_candidate_k=None,
+    rag_reindex=None,
+    rag_clear_index=None,
+    rag_show_sources=None,
+    rag_dry_run=None,
+    rag_sources=None,
     config_file=None,
 ):
     work_mode = DEFAULT_CONFIG["work_mode"] if work_mode is None else work_mode
@@ -151,6 +172,13 @@ def build_context(
     embedding_api_key_env = DEFAULT_CONFIG["embedding_api_key_env"] if embedding_api_key_env is None else embedding_api_key_env
     embedding_api_key = DEFAULT_CONFIG["embedding_api_key"] if embedding_api_key is None else embedding_api_key
     embedding_timeout = DEFAULT_CONFIG["embedding_timeout"] if embedding_timeout is None else embedding_timeout
+    rag_top_k = DEFAULT_CONFIG["rag_top_k"] if rag_top_k is None else rag_top_k
+    rag_candidate_k = DEFAULT_CONFIG["rag_candidate_k"] if rag_candidate_k is None else rag_candidate_k
+    rag_reindex = DEFAULT_CONFIG["rag_reindex"] if rag_reindex is None else rag_reindex
+    rag_clear_index = DEFAULT_CONFIG["rag_clear_index"] if rag_clear_index is None else rag_clear_index
+    rag_show_sources = DEFAULT_CONFIG["rag_show_sources"] if rag_show_sources is None else rag_show_sources
+    rag_dry_run = DEFAULT_CONFIG["rag_dry_run"] if rag_dry_run is None else rag_dry_run
+    rag_sources = DEFAULT_CONFIG["rag_sources"] if rag_sources is None else rag_sources
 
     script_dir = script_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     script_dir = os.path.abspath(script_dir)
@@ -214,6 +242,13 @@ def build_context(
         embedding_api_key_env=embedding_api_key_env,
         embedding_api_key=embedding_api_key,
         embedding_timeout=embedding_timeout,
+        rag_top_k=int(rag_top_k),
+        rag_candidate_k=int(rag_candidate_k),
+        rag_reindex=bool(rag_reindex),
+        rag_clear_index=bool(rag_clear_index),
+        rag_show_sources=bool(rag_show_sources),
+        rag_dry_run=bool(rag_dry_run),
+        rag_sources=list(rag_sources),
         kb_dir=kb_dir,
         datasheet_dir=datasheet_dir,
         vector_db_dir=vector_db_dir,
@@ -322,6 +357,13 @@ def runtime_config_dict(ctx):
         "embedding_base_url": ctx.embedding_base_url,
         "embedding_api_key_env": ctx.embedding_api_key_env,
         "embedding_timeout": ctx.embedding_timeout,
+        "rag_top_k": ctx.rag_top_k,
+        "rag_candidate_k": ctx.rag_candidate_k,
+        "rag_reindex": ctx.rag_reindex,
+        "rag_clear_index": ctx.rag_clear_index,
+        "rag_show_sources": ctx.rag_show_sources,
+        "rag_dry_run": ctx.rag_dry_run,
+        "rag_sources": ctx.rag_sources,
         "config_file": ctx.config_file,
     }
 

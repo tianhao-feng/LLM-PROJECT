@@ -13,6 +13,7 @@ from autofpga.config import DEFAULT_CONFIG, build_context, load_config_file, rea
 from autofpga.llm_client import configure_llm_from_context
 from autofpga.manifest import validate_manifest_file
 from autofpga.pipeline import main as run_pipeline
+from autofpga.rag import dump_rag_index, execute_rag_skill
 
 
 def parse_args(argv=None):
@@ -47,6 +48,21 @@ def parse_args(argv=None):
     parser.add_argument("--embedding-api-key-env", help="Embedding API key 环境变量名")
     parser.add_argument("--embedding-api-key", help="直接传入 embedding API key，不建议写入配置文件")
     parser.add_argument("--embedding-timeout", type=int, help="Embedding 请求超时秒数")
+    parser.add_argument("--rag-top-k", type=int, help="RAG 最终传入回答模型的片段数量")
+    parser.add_argument("--rag-candidate-k", type=int, help="RAG 向量/关键词候选片段数量")
+    parser.add_argument("--rag-reindex", action="store_true", help="强制重建当前知识文件的索引")
+    parser.add_argument("--rag-clear-index", action="store_true", help="先清空 RAG 向量库再重新索引")
+    parser.add_argument("--rag-hide-sources", action="store_true", help="检索回答时不在终端打印来源列表")
+    parser.add_argument("--rag-dry-run", action="store_true", help="只打印 RAG 检索片段和来源，不调用 LLM")
+    parser.add_argument("--rag-dump-index", action="store_true", help="打印当前 RAG 索引文件、chunk 数和 hash 后退出")
+    parser.add_argument(
+        "--rag-source",
+        action="append",
+        choices=["datasheets", "knowledge_base"],
+        help="限定 RAG 检索源，可重复传入；默认同时使用 datasheets 和 knowledge_base",
+    )
+    parser.add_argument("--rag-query", help="直接执行一次 RAG 文档检索问答并退出，绕过 AUTO 路由")
+    parser.add_argument("--rag-skill", choices=["CONCEPT", "TABLE"], default="CONCEPT", help="--rag-query 使用的 RAG 问答类型")
     parser.add_argument("--validate-manifest", help="Validate a run_manifest.json and exit")
     parser.add_argument("--expected-manifest", help="Optional expected_manifest.json contract")
     return parser.parse_args(argv)
@@ -88,6 +104,8 @@ def merge_config(args):
         "embedding_api_key_env": args.embedding_api_key_env,
         "embedding_api_key": args.embedding_api_key,
         "embedding_timeout": args.embedding_timeout,
+        "rag_top_k": args.rag_top_k,
+        "rag_candidate_k": args.rag_candidate_k,
     }
     for key, value in cli_values.items():
         if value is not None:
@@ -97,6 +115,16 @@ def merge_config(args):
         config["user_requirement"] = read_text_file(args.requirement_file)
     if args.no_timestamp:
         config["auto_timestamp"] = False
+    if args.rag_reindex:
+        config["rag_reindex"] = True
+    if args.rag_clear_index:
+        config["rag_clear_index"] = True
+    if args.rag_hide_sources:
+        config["rag_show_sources"] = False
+    if args.rag_dry_run:
+        config["rag_dry_run"] = True
+    if args.rag_source:
+        config["rag_sources"] = args.rag_source
 
     config["work_mode"] = str(config["work_mode"]).upper()
     config["auto_timestamp"] = bool(config["auto_timestamp"])
@@ -108,6 +136,13 @@ def merge_config(args):
     config["llm_timeout"] = int(config["llm_timeout"])
     config["llm_max_retries"] = int(config["llm_max_retries"])
     config["embedding_timeout"] = int(config["embedding_timeout"])
+    config["rag_top_k"] = int(config["rag_top_k"])
+    config["rag_candidate_k"] = int(config["rag_candidate_k"])
+    config["rag_reindex"] = bool(config["rag_reindex"])
+    config["rag_clear_index"] = bool(config["rag_clear_index"])
+    config["rag_show_sources"] = bool(config["rag_show_sources"])
+    config["rag_dry_run"] = bool(config["rag_dry_run"])
+    config["rag_sources"] = list(config["rag_sources"])
     if config["llm_provider"] == "ollama":
         if config["llm_base_url"] == DEFAULT_CONFIG["llm_base_url"]:
             config["llm_base_url"] = config["embedding_base_url"] or "http://localhost:11434"
@@ -158,9 +193,22 @@ def main(argv=None):
         embedding_api_key_env=config["embedding_api_key_env"],
         embedding_api_key=config["embedding_api_key"],
         embedding_timeout=config["embedding_timeout"],
+        rag_top_k=config["rag_top_k"],
+        rag_candidate_k=config["rag_candidate_k"],
+        rag_reindex=config["rag_reindex"],
+        rag_clear_index=config["rag_clear_index"],
+        rag_show_sources=config["rag_show_sources"],
+        rag_dry_run=config["rag_dry_run"],
+        rag_sources=config["rag_sources"],
         config_file=os.path.abspath(args.config) if args.config else None,
     )
     configure_llm_from_context(ctx)
+    if args.rag_dump_index:
+        dump_rag_index(ctx)
+        return
+    if args.rag_query:
+        execute_rag_skill(ctx, args.rag_query, args.rag_skill)
+        return
     run_pipeline(ctx)
 
 
