@@ -4,6 +4,7 @@ import re
 
 from .code_utils import VERILOG_2001_RULES, build_targeted_context, clean_code, read_all_src_code, write_verified_verilog
 from .llm_client import query_llm
+from .prompt_templates import render_prompt
 from .xdc import ensure_board_pin_database, generate_structured_xdc
 
 
@@ -77,112 +78,11 @@ def agent_architect(ctx, requirement):
         filenames=["vivado_flow_notes.md", "xdc_constraints_notes.md"],
         max_chars=4500,
     )
-    prompt_readme = f"""
-你是一个资深 FPGA/RTL 项目架构师。你的任务不是写概念说明，而是生成一份可直接指导自动代码生成、仿真和综合的工程规格 README.md。
-
-【用户需求】
-{requirement}
-
-【硬性工程约束】
-1. 所有 RTL 必须使用 Verilog-2001，禁止 SystemVerilog。
-2. 所有 RTL 文件扩展名为 .v。
-3. 必须生成可被 Icarus Verilog、ModelSim 和 Vivado 2017.4 接受的代码。
-4. 设计必须可综合，不允许只写行为级不可综合模型。
-5. 时钟统一命名为 clk，复位统一命名为 rst_n，低有效异步复位。
-6. 顶层模块名必须明确指定。如果用户没有指定，使用与设计语义匹配的顶层名，例如 riscv_cpu_top。
-7. 所有子模块必须给出 filename、module_name、端口、位宽、方向、功能说明。
-8. 不允许出现“待实现”“略”“根据需要扩展”“TODO”这类占位内容。
-9. 必须明确最小可验证功能范围，避免生成超出当前任务的不可控复杂系统。
-
-【README.md 必须按以下结构输出】
-
-# 项目名称
-
-## 1. 设计目标
-- 用 3-6 条列出本工程必须实现的功能。
-- 明确不实现的功能边界。
-
-## 2. 语言与工具约束
-- RTL 语言：Verilog-2001。
-- 禁止使用 SystemVerilog 语法。
-- 目标工具：Icarus Verilog、ModelSim、Vivado 2017.4。
-- 时钟、复位、端口命名规则。
-
-## 3. 顶层模块规范
-必须包含一个 Markdown 表格：
-| 项目 | 内容 |
-|---|---|
-| 顶层文件 | xxx.v |
-| 顶层模块 | xxx |
-| 时钟端口 | clk |
-| 复位端口 | rst_n |
-| 复位类型 | 低有效异步复位 |
-
-然后给出顶层端口表：
-| 端口名 | 方向 | 位宽 | 说明 |
-
-## 4. 模块划分
-必须给出模块清单表：
-| filename | module_name | 是否顶层 | 功能 | 主要输入 | 主要输出 |
-
-## 5. 模块详细接口
-对每个模块分别给出：
-### module_name
-| 端口名 | 方向 | 位宽 | 说明 |
-并说明该模块的组合逻辑、时序逻辑、复位行为。
-
-## 6. 模块连接关系
-必须说明：
-- 哪个模块例化哪个模块。
-- 关键内部信号名称。
-- 数据流方向。
-- 控制流方向。
-
-## 7. 功能行为规格
-用可验证条目描述设计行为。
-如果是 CPU/RISC-V，需要明确：
-- 支持的最小指令子集。
-- PC 更新规则。
-- 寄存器 x0 恒为 0。
-- 访存规则。
-- 分支/跳转规则。
-- 写回规则。
-- 是否支持流水线；如果支持，说明 hazard/forward/stall/flush 策略。
-
-## 8. Testbench 验收标准
-必须定义 testbench 需要验证的场景。
-必须要求：
-- 测试平台文件固定命名为 tb_top_module.v。
-- 测试平台 module 名称可以自定，建议使用 tb_<dut_name>；系统会从 testbench 文件中自动解析仿真顶层。
-- 成功时打印 SIM_RESULT: PASSED。
-- 失败时打印 SIM_RESULT: FAILED。
-- 仿真结束调用 $stop。
-- 不允许只跑时钟不检查结果。
-
-## 9. XDC/板卡约束需求
-说明哪些顶层端口需要物理约束。
-如果端口不是板卡 IO，而是外部存储器接口，也要说明约束策略。
-
-## 10. 代码生成规则
-- 每个 module 必须独立成文件。
-- module_name 必须和架构表一致。
-- 禁止空文件。
-- 禁止解释文本混入 Verilog。
-- 禁止 SystemVerilog。
-- 循环变量必须声明在 module 作用域。
-- 所有 always 块必须有明确复位或默认赋值，避免 latch。
-
-【输出要求】
-只输出完整 README.md 内容，不要输出解释。
-内容必须具体、完整，不能少于 800 字。
-"""
-    prompt_readme += f"""
-
-[Xilinx/Vivado/XDC reference notes]
-Use the following local notes as hard engineering guidance when writing the README.
-They are reference constraints, not user requirements. Do not copy them verbatim.
-{xilinx_notes}
-"""
+    prompt_readme = render_prompt(
+        "architect_readme.md",
+        requirement=requirement,
+        xilinx_notes=xilinx_notes,
+    )
     readme_content = ""
     readme_problems = []
     for readme_try in range(3):
@@ -449,16 +349,14 @@ def agent_coder(ctx, arch_json, error_context=None):
         print("\n>>> [Agent-主程修复] 接到审查报错，正在分析血缘依赖并加载增量上下文...")
         targeted_code, scope_str = build_targeted_context(error_context, ctx.src_dir)
         print(f"    -> [上下文剪枝] 锁定相关依赖链: {scope_str}")
-        prompt = f"""你是一个修复 Bug 的主程。系统联合编译报错！
-        【总体设计规范】\n{sys_spec}\n
-        {VERILOG_2001_RULES}
-
-        【报错信息】\n{error_context}
-        【相关模块代码】\n{targeted_code}
-        【历史教训】\n{err_mem}
-
-        请严格修复。输出代码块第一行用注释标明覆写文件名，如 `// File: top_module.v`。
-        只输出被修改的文件。"""
+        prompt = render_prompt(
+            "repair_module.md",
+            sys_spec=sys_spec,
+            verilog_rules=VERILOG_2001_RULES,
+            error_context=error_context,
+            targeted_code=targeted_code,
+            error_memory=err_mem,
+        )
         repair_code = query_llm(prompt)
         blocks = re.split(r"//\s*File:\s*([a-zA-Z0-9_]+\.v)", repair_code, flags=re.IGNORECASE)
         if len(blocks) > 1:
@@ -494,20 +392,17 @@ def agent_coder(ctx, arch_json, error_context=None):
             retry_hint = ""
             if last_problems:
                 retry_hint = "\n【上次输出被拒绝原因】:\n" + "\n".join([f"- {p}" for p in last_problems])
-            prompt = f"""【总体设计规范】\n{sys_spec}\n【局部架构清单】\n{global_arch}\n
-            {VERILOG_2001_RULES}
-
-            【任务】：编写 `{fname}`。
-            模块名：{mname}
-            端口列表：{port_spec}
-            功能描述：{mod.get('description', '')}
-            {retry_hint}
-
-            强制要求：
-            1. 只输出一个完整 Verilog 代码块。
-            2. 必须包含 `module {mname}` 和 `endmodule`。
-            3. 禁止输出解释、Markdown 正文或对话文本。
-            4. 必须严格满足 Verilog-2001 硬性约束。"""
+            prompt = render_prompt(
+                "coder_module.md",
+                sys_spec=sys_spec,
+                global_arch=global_arch,
+                verilog_rules=VERILOG_2001_RULES,
+                filename=fname,
+                module_name=mname,
+                port_spec=port_spec,
+                description=mod.get("description", ""),
+                retry_hint=retry_hint,
+            )
             code = clean_code(query_llm(prompt), "verilog")
             ok, last_problems = write_verified_verilog(os.path.join(ctx.src_dir, fname), code, expected_module=mname)
             if ok:
@@ -548,38 +443,23 @@ def task_generate_testbench(ctx, error_msg=None, current_tb=None):
         save_rejected_testbench(ctx, deterministic_tb, problems)
 
     if error_msg:
-        prompt = f"""被测系统：\n{all_rtl}\n【需求】:\n{ctx.user_requirement}\n{VERILOG_2001_RULES}
-TB报错：\n{error_msg}\n【错误TB】:\n{current_tb}
-        请修复错误。
-        硬性要求：
-        1. Testbench 文件由系统保存为 tb_top_module.v。
-        2. Testbench module 名称可以自定，建议使用 tb_{dut_module}；系统会从文件中自动解析仿真顶层。
-        3. 被测 DUT 模块名是 {dut_module}，必须例化它。
-        4. 验证成功路径必须打印 $display("SIM_RESULT: PASSED");
-        5. 验证失败路径必须打印 $display("SIM_RESULT: FAILED");
-        6. 每一个检查点失败时必须打印 SIM_RESULT: FAILED，不能只打印普通 ERROR。
-        7. 必须包含 if/比较语句主动检查 DUT 输出或关键状态，禁止只跑时钟或固定延时后直接 PASS。
-        8. 时序电路采样规则：输入激励在 negedge clk 或远离 posedge 的时刻改变；检查寄存器输出必须在 posedge clk 之后 #1 再比较，或在下一个 negedge clk 比较。禁止用裸 #10 后直接把 loop index 当期望值。
-        9. 对计数器这类寄存器 DUT，维护 expected_count 变量；每次有效 posedge 后先根据复位/使能规则更新 expected_count，再与 DUT 输出比较。
-        10. 仿真结束必须调用 $stop，禁止 $finish。
-        11. 只输出一个完整 Verilog 代码块。"""
+        prompt = render_prompt(
+            "testbench_repair.md",
+            all_rtl=all_rtl,
+            user_requirement=ctx.user_requirement,
+            verilog_rules=VERILOG_2001_RULES,
+            error_msg=error_msg,
+            current_tb=current_tb,
+            dut_module=dut_module,
+        )
     else:
-        prompt = f"""全系统代码：\n{all_rtl}\n【设计需求】:\n{ctx.user_requirement}
-        {VERILOG_2001_RULES}
-        编写自校验 Testbench。
-        硬性要求：
-        1. Testbench 文件由系统保存为 tb_top_module.v。
-        2. Testbench module 名称可以自定，建议使用 tb_{dut_module}；系统会从文件中自动解析仿真顶层。
-        3. 被测 DUT 模块名是 {dut_module}，必须例化它。
-        4. 根据需求主动检查 DUT 输出，不允许只跑时钟。
-        5. 成功路径必须打印 $display("SIM_RESULT: PASSED");
-        6. 失败路径必须打印 $display("SIM_RESULT: FAILED");
-        7. 每一个检查点失败时必须打印 SIM_RESULT: FAILED，不能只打印普通 ERROR。
-        8. 必须包含 if/比较语句主动检查 DUT 输出或关键状态，禁止只跑时钟或固定延时后直接 PASS。
-        9. 时序电路采样规则：输入激励在 negedge clk 或远离 posedge 的时刻改变；检查寄存器输出必须在 posedge clk 之后 #1 再比较，或在下一个 negedge clk 比较。禁止用裸 #10 后直接把 loop index 当期望值。
-        10. 对计数器这类寄存器 DUT，维护 expected_count 变量；每次有效 posedge 后先根据复位/使能规则更新 expected_count，再与 DUT 输出比较。
-        11. 仿真结束必须调用 $stop，禁止 $finish。
-        12. 只输出一个完整 Verilog 代码块。"""
+        prompt = render_prompt(
+            "testbench_generate.md",
+            all_rtl=all_rtl,
+            user_requirement=ctx.user_requirement,
+            verilog_rules=VERILOG_2001_RULES,
+            dut_module=dut_module,
+        )
     code = clean_code(query_llm(prompt), "tb")
     if code:
         ok, problems = write_verified_verilog(

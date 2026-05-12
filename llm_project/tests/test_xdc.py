@@ -1,7 +1,10 @@
 import os
+import json
 import unittest
 import uuid
 
+from autofpga.config import build_context
+from autofpga.xdc import board_pin_db_path, generate_structured_xdc
 from autofpga.xdc import build_xdc_from_ports, parse_top_module_ports
 
 
@@ -75,6 +78,39 @@ endmodule
 
         with self.assertRaisesRegex(RuntimeError, "引脚冲突"):
             build_xdc_from_ports(ports, db, "top", "top.v")
+
+    def test_generate_structured_xdc_uses_custom_board_pins_file(self):
+        tmp = reset_tmp("xdc_custom_board")
+        board_file = os.path.join(tmp, "boards", "demo.json")
+        os.makedirs(os.path.dirname(board_file))
+        with open(board_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "default_iostandard": "LVCMOS18",
+                    "default_clock_period_ns": 10.0,
+                    "ports": {
+                        "clk": {"pin": "A1", "clock": True},
+                        "led": {"pin": "B2"},
+                    },
+                },
+                f,
+            )
+        ctx = build_context(
+            script_dir=tmp,
+            project_name="demo",
+            auto_timestamp=False,
+            board_pins_file=board_file,
+        )
+        os.makedirs(ctx.src_dir, exist_ok=True)
+        with open(os.path.join(ctx.src_dir, "demo_top.v"), "w", encoding="utf-8") as f:
+            f.write("module demo_top(input clk, output led); assign led = clk; endmodule\n")
+
+        xdc = generate_structured_xdc(ctx)
+
+        self.assertEqual(board_pin_db_path(ctx), board_file)
+        self.assertIn("create_clock -period 10.000", xdc)
+        self.assertIn("PACKAGE_PIN A1", xdc)
+        self.assertIn("IOSTANDARD LVCMOS18", xdc)
 
 
 if __name__ == "__main__":

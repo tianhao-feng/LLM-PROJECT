@@ -32,6 +32,8 @@ class RuntimeContext:
     llm_temperature: float
     llm_timeout: int
     llm_max_retries: int
+    llm_trace: bool
+    llm_trace_file: str
     embedding_provider: str
     embedding_model: str
     embedding_base_url: str
@@ -45,6 +47,7 @@ class RuntimeContext:
     rag_show_sources: bool
     rag_dry_run: bool
     rag_sources: list
+    board_pins_file: str
     kb_dir: str
     datasheet_dir: str
     vector_db_dir: str
@@ -92,6 +95,8 @@ DEFAULT_CONFIG = {
     "llm_temperature": 0.1,
     "llm_timeout": 300,
     "llm_max_retries": 2,
+    "llm_trace": False,
+    "llm_trace_file": "",
     "embedding_provider": "ollama",
     "embedding_model": "nomic-embed-text",
     "embedding_base_url": "http://localhost:11434",
@@ -105,6 +110,7 @@ DEFAULT_CONFIG = {
     "rag_show_sources": True,
     "rag_dry_run": False,
     "rag_sources": ["datasheets", "knowledge_base"],
+    "board_pins_file": "",
 }
 
 
@@ -131,6 +137,8 @@ def build_context(
     llm_temperature=None,
     llm_timeout=None,
     llm_max_retries=None,
+    llm_trace=None,
+    llm_trace_file=None,
     embedding_provider=None,
     embedding_model=None,
     embedding_base_url=None,
@@ -144,6 +152,7 @@ def build_context(
     rag_show_sources=None,
     rag_dry_run=None,
     rag_sources=None,
+    board_pins_file=None,
     config_file=None,
 ):
     work_mode = DEFAULT_CONFIG["work_mode"] if work_mode is None else work_mode
@@ -166,6 +175,8 @@ def build_context(
     llm_temperature = DEFAULT_CONFIG["llm_temperature"] if llm_temperature is None else llm_temperature
     llm_timeout = DEFAULT_CONFIG["llm_timeout"] if llm_timeout is None else llm_timeout
     llm_max_retries = DEFAULT_CONFIG["llm_max_retries"] if llm_max_retries is None else llm_max_retries
+    llm_trace = DEFAULT_CONFIG["llm_trace"] if llm_trace is None else llm_trace
+    llm_trace_file = DEFAULT_CONFIG["llm_trace_file"] if llm_trace_file is None else llm_trace_file
     embedding_provider = DEFAULT_CONFIG["embedding_provider"] if embedding_provider is None else embedding_provider
     embedding_model = DEFAULT_CONFIG["embedding_model"] if embedding_model is None else embedding_model
     embedding_base_url = DEFAULT_CONFIG["embedding_base_url"] if embedding_base_url is None else embedding_base_url
@@ -179,6 +190,7 @@ def build_context(
     rag_show_sources = DEFAULT_CONFIG["rag_show_sources"] if rag_show_sources is None else rag_show_sources
     rag_dry_run = DEFAULT_CONFIG["rag_dry_run"] if rag_dry_run is None else rag_dry_run
     rag_sources = DEFAULT_CONFIG["rag_sources"] if rag_sources is None else rag_sources
+    board_pins_file = DEFAULT_CONFIG["board_pins_file"] if board_pins_file is None else board_pins_file
 
     script_dir = script_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     script_dir = os.path.abspath(script_dir)
@@ -189,6 +201,12 @@ def build_context(
     error_kb_file = os.path.join(runs_base_dir, "error_memory.txt")
     projects_base_dir = os.path.join(script_dir, "projects")
     os.makedirs(projects_base_dir, exist_ok=True)
+    if board_pins_file:
+        board_pins_file = os.path.abspath(
+            board_pins_file if os.path.isabs(board_pins_file) else os.path.join(script_dir, board_pins_file)
+        )
+    else:
+        board_pins_file = os.path.join(kb_dir, "board_pins.json")
 
     work_mode = work_mode.upper()
     if work_mode == "BUILD_ONLY":
@@ -210,6 +228,12 @@ def build_context(
     output_dir = os.path.join(run_dir, "vivado_out")
     sim_dir = os.path.join(run_dir, "sim_work")
     manifest_file = os.path.join(save_dir, "run_manifest.json")
+    if llm_trace_file:
+        llm_trace_file = os.path.abspath(
+            llm_trace_file if os.path.isabs(llm_trace_file) else os.path.join(script_dir, llm_trace_file)
+        )
+    else:
+        llm_trace_file = os.path.join(run_dir, "llm_trace.jsonl")
 
     for path in [kb_dir, datasheet_dir, vector_db_dir]:
         os.makedirs(path, exist_ok=True)
@@ -236,6 +260,8 @@ def build_context(
         llm_temperature=llm_temperature,
         llm_timeout=llm_timeout,
         llm_max_retries=llm_max_retries,
+        llm_trace=bool(llm_trace),
+        llm_trace_file=llm_trace_file,
         embedding_provider=embedding_provider,
         embedding_model=embedding_model,
         embedding_base_url=embedding_base_url,
@@ -249,6 +275,7 @@ def build_context(
         rag_show_sources=bool(rag_show_sources),
         rag_dry_run=bool(rag_dry_run),
         rag_sources=list(rag_sources),
+        board_pins_file=board_pins_file,
         kb_dir=kb_dir,
         datasheet_dir=datasheet_dir,
         vector_db_dir=vector_db_dir,
@@ -352,6 +379,8 @@ def runtime_config_dict(ctx):
         "llm_temperature": ctx.llm_temperature,
         "llm_timeout": ctx.llm_timeout,
         "llm_max_retries": ctx.llm_max_retries,
+        "llm_trace": ctx.llm_trace,
+        "llm_trace_file": ctx.llm_trace_file,
         "embedding_provider": ctx.embedding_provider,
         "embedding_model": ctx.embedding_model,
         "embedding_base_url": ctx.embedding_base_url,
@@ -364,6 +393,7 @@ def runtime_config_dict(ctx):
         "rag_show_sources": ctx.rag_show_sources,
         "rag_dry_run": ctx.rag_dry_run,
         "rag_sources": ctx.rag_sources,
+        "board_pins_file": ctx.board_pins_file,
         "config_file": ctx.config_file,
     }
 

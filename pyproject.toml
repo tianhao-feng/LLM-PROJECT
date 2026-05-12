@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autofpga"
+version = "0.1.0"
+description = "LLM-assisted Verilog FPGA generation, verification, and build workflow."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31.0",
+  "chromadb>=0.5.0",
+  "pdfplumber>=0.11.0",
+]
+
+[project.scripts]
+autofpga = "autofpga.main:main"
+
+[tool.setuptools.packages.find]
+where = ["llm_project"]

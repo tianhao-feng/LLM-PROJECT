@@ -8,7 +8,7 @@ The repository is intentionally split into stable source/configuration files and
 - `knowledge_base/`: stable board and coding knowledge.
 - `knowledge_base/xilinx_skill/`: curated Vivado/XDC/Tcl notes derived from `QingquanYao/xilinx-skill`.
 - `datasheets/`: source documents used by RAG.
-- `examples/`: small known-good reference projects and expected output contracts.
+- `examples/`: golden cases: previously completed full-flow projects with expected output contracts.
 - `runs/`: generated runtime state such as vector DBs and error memory. This directory is ignored by git.
 - `projects/`: generated FPGA projects. This directory is created at runtime and ignored by git.
 
@@ -16,6 +16,13 @@ The repository is intentionally split into stable source/configuration files and
 
 ```powershell
 pip install -r requirements.txt
+```
+
+For editable CLI development from the repository root:
+
+```powershell
+pip install -e .
+autofpga --help
 ```
 
 External FPGA tools are configured separately and are not installed by pip:
@@ -31,6 +38,41 @@ Show available options:
 
 ```powershell
 python -m autofpga --help
+```
+
+Check the local environment without running generation:
+
+```powershell
+python -m autofpga --doctor
+python -m autofpga --doctor --doctor-smoke
+```
+
+Audit committed golden cases, which are previously completed full-flow projects:
+
+```powershell
+python -m autofpga --audit-examples
+python -m autofpga --audit-cases --case-index
+```
+
+Capture evidence for a golden case from a completed run manifest:
+
+```powershell
+python -m autofpga --capture-case-evidence examples/counter_4bit --manifest projects/<project>/run_manifest.json --copy-manifest
+```
+
+Run lightweight regression on golden cases. The default uses Icarus Verilog only and copies each case into `runs/regression/` before executing tools:
+
+```powershell
+python -m autofpga --regression-cases
+python -m autofpga --regression-cases --regression-tools iverilog,modelsim
+```
+
+Prompt templates live under `autofpga/prompts/`. Each template starts with `Prompt-Name` and `Prompt-Version` so prompt behavior can be reviewed and versioned separately from Python control logic.
+
+Audit prompt templates:
+
+```powershell
+python -m autofpga --audit-prompts
 ```
 
 Run with the example configuration:
@@ -50,6 +92,12 @@ Use cloud LLM inference with DeepSeek:
 ```powershell
 set DEEPSEEK_API_KEY=your_key
 python -m autofpga --config autofpga.example.json
+```
+
+Record prompt/response traces for reproducible debugging:
+
+```powershell
+python -m autofpga --config autofpga.example.json --llm-trace
 ```
 
 Use a local Ollama chat model instead:
@@ -77,6 +125,12 @@ python -m autofpga --work-mode BUILD_ONLY --project-dir <project_name_or_path>
 XDC generation is deterministic. AutoFPGA reads `knowledge_base/board_pins.json`, parses the top-level RTL ports, and refuses to generate constraints if any top-level port lacks a pin mapping.
 
 Do not rely on the LLM to invent pins. Add real board mappings to `board_pins.json` before building.
+
+Use a different board mapping without editing the default file:
+
+```powershell
+python -m autofpga --config autofpga.example.json --board-pins-file knowledge_base/boards/my_board.json
+```
 
 ## Xilinx Skill Notes
 

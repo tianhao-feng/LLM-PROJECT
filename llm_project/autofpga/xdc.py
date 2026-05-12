@@ -41,7 +41,7 @@ def ensure_board_pin_database(ctx):
 
 
 def board_pin_db_path(ctx):
-    return os.path.join(ctx.kb_dir, "board_pins.json")
+    return getattr(ctx, "board_pins_file", "") or os.path.join(ctx.kb_dir, "board_pins.json")
 
 
 def load_board_pin_database(ctx):

@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 
@@ -10,9 +11,14 @@ if __package__ in {None, ""}:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autofpga.config import DEFAULT_CONFIG, build_context, load_config_file, read_text_file
+from autofpga.case_evidence import capture_case_evidence
+from autofpga.case_regression import format_regression_report, run_case_regression
+from autofpga.doctor import collect_doctor_report, format_doctor_report
+from autofpga.example_audit import audit_examples, format_example_audit_report
 from autofpga.llm_client import configure_llm_from_context
 from autofpga.manifest import validate_manifest_file
 from autofpga.pipeline import main as run_pipeline
+from autofpga.prompt_audit import audit_prompt_templates, format_prompt_audit_report
 from autofpga.rag import dump_rag_index, execute_rag_skill
 
 
@@ -42,6 +48,8 @@ def parse_args(argv=None):
     parser.add_argument("--llm-temperature", type=float, help="LLM temperature")
     parser.add_argument("--llm-timeout", type=int, help="LLM 请求超时秒数")
     parser.add_argument("--llm-max-retries", type=int, help="LLM 网络重试次数")
+    parser.add_argument("--llm-trace", action="store_true", help="记录 LLM prompt/response 到 JSONL trace 文件")
+    parser.add_argument("--llm-trace-file", help="LLM trace JSONL 文件路径；默认写入当前工程 runs/llm_trace.jsonl")
     parser.add_argument("--embedding-provider", choices=["ollama", "openai", "openai_compatible", "cloud", "none"], help="Embedding 提供方")
     parser.add_argument("--embedding-model", help="Embedding 模型名")
     parser.add_argument("--embedding-base-url", help="Embedding base URL")
@@ -61,8 +69,26 @@ def parse_args(argv=None):
         choices=["datasheets", "knowledge_base"],
         help="限定 RAG 检索源，可重复传入；默认同时使用 datasheets 和 knowledge_base",
     )
+    parser.add_argument("--board-pins-file", help="板卡引脚 JSON 文件；相对路径按工程根目录解析")
     parser.add_argument("--rag-query", help="直接执行一次 RAG 文档检索问答并退出，绕过 AUTO 路由")
     parser.add_argument("--rag-skill", choices=["CONCEPT", "TABLE"], default="CONCEPT", help="--rag-query 使用的 RAG 问答类型")
+    parser.add_argument("--doctor", action="store_true", help="检查 Python 依赖、外部工具、LLM/Embedding 配置和板卡约束库")
+    parser.add_argument("--doctor-strict", action="store_true", help="doctor 存在 WARN/FAIL 时返回非零状态码")
+    parser.add_argument("--doctor-json", action="store_true", help="以 JSON 格式输出 doctor 报告")
+    parser.add_argument("--doctor-smoke", action="store_true", help="doctor 中实际运行轻量版本命令检查外部工具")
+    parser.add_argument("--audit-examples", action="store_true", help="静态审查 examples/ 下的历史跑通样本")
+    parser.add_argument("--audit-cases", action="store_true", help="--audit-examples 的语义化别名：审查 golden cases")
+    parser.add_argument("--examples-dir", help="示例工程目录，默认使用工程根目录下的 examples")
+    parser.add_argument("--case-index", action="store_true", help="审查 golden cases 后写入 index.json")
+    parser.add_argument("--case-index-file", help="golden case index 输出路径，默认写入 examples/index.json")
+    parser.add_argument("--capture-case-evidence", help="为指定 golden case 目录生成 run_evidence.json")
+    parser.add_argument("--manifest", help="用于 --capture-case-evidence 的 run_manifest.json 路径")
+    parser.add_argument("--copy-manifest", action="store_true", help="捕获 evidence 时把 run_manifest.json 复制进 case 目录")
+    parser.add_argument("--regression-cases", action="store_true", help="复制并回归验证 examples/ 下的 golden cases")
+    parser.add_argument("--regression-tools", default="iverilog", help="逗号分隔的回归工具：iverilog,modelsim,vivado")
+    parser.add_argument("--regression-report", help="golden case regression JSON 报告输出路径")
+    parser.add_argument("--audit-prompts", action="store_true", help="审查 prompt 模板元数据、变量和关键约束")
+    parser.add_argument("--audit-json", action="store_true", help="以 JSON 格式输出 example audit 报告")
     parser.add_argument("--validate-manifest", help="Validate a run_manifest.json and exit")
     parser.add_argument("--expected-manifest", help="Optional expected_manifest.json contract")
     return parser.parse_args(argv)
@@ -98,6 +124,7 @@ def merge_config(args):
         "llm_temperature": args.llm_temperature,
         "llm_timeout": args.llm_timeout,
         "llm_max_retries": args.llm_max_retries,
+        "llm_trace_file": args.llm_trace_file,
         "embedding_provider": args.embedding_provider,
         "embedding_model": args.embedding_model,
         "embedding_base_url": args.embedding_base_url,
@@ -106,6 +133,7 @@ def merge_config(args):
         "embedding_timeout": args.embedding_timeout,
         "rag_top_k": args.rag_top_k,
         "rag_candidate_k": args.rag_candidate_k,
+        "board_pins_file": args.board_pins_file,
     }
     for key, value in cli_values.items():
         if value is not None:
@@ -115,6 +143,8 @@ def merge_config(args):
         config["user_requirement"] = read_text_file(args.requirement_file)
     if args.no_timestamp:
         config["auto_timestamp"] = False
+    if args.llm_trace:
+        config["llm_trace"] = True
     if args.rag_reindex:
         config["rag_reindex"] = True
     if args.rag_clear_index:
@@ -135,6 +165,8 @@ def merge_config(args):
     config["llm_temperature"] = float(config["llm_temperature"])
     config["llm_timeout"] = int(config["llm_timeout"])
     config["llm_max_retries"] = int(config["llm_max_retries"])
+    config["llm_trace"] = bool(config["llm_trace"])
+    config["llm_trace_file"] = str(config.get("llm_trace_file") or "")
     config["embedding_timeout"] = int(config["embedding_timeout"])
     config["rag_top_k"] = int(config["rag_top_k"])
     config["rag_candidate_k"] = int(config["rag_candidate_k"])
@@ -143,6 +175,7 @@ def merge_config(args):
     config["rag_show_sources"] = bool(config["rag_show_sources"])
     config["rag_dry_run"] = bool(config["rag_dry_run"])
     config["rag_sources"] = list(config["rag_sources"])
+    config["board_pins_file"] = str(config.get("board_pins_file") or "")
     if config["llm_provider"] == "ollama":
         if config["llm_base_url"] == DEFAULT_CONFIG["llm_base_url"]:
             config["llm_base_url"] = config["embedding_base_url"] or "http://localhost:11434"
@@ -187,6 +220,8 @@ def main(argv=None):
         llm_temperature=config["llm_temperature"],
         llm_timeout=config["llm_timeout"],
         llm_max_retries=config["llm_max_retries"],
+        llm_trace=config["llm_trace"],
+        llm_trace_file=config["llm_trace_file"],
         embedding_provider=config["embedding_provider"],
         embedding_model=config["embedding_model"],
         embedding_base_url=config["embedding_base_url"],
@@ -200,8 +235,67 @@ def main(argv=None):
         rag_show_sources=config["rag_show_sources"],
         rag_dry_run=config["rag_dry_run"],
         rag_sources=config["rag_sources"],
+        board_pins_file=config["board_pins_file"],
         config_file=os.path.abspath(args.config) if args.config else None,
     )
+    if args.doctor:
+        report = collect_doctor_report(ctx, smoke=args.doctor_smoke)
+        if args.doctor_json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_doctor_report(report))
+        if args.doctor_strict and report["overall"] != "ok":
+            raise SystemExit(1)
+        return
+    if args.audit_examples or args.audit_cases:
+        examples_dir = os.path.abspath(args.examples_dir) if args.examples_dir else os.path.join(ctx.script_dir, "examples")
+        index_file = os.path.abspath(args.case_index_file) if args.case_index_file else None
+        report = audit_examples(examples_dir, write_index=args.case_index, index_file=index_file)
+        if args.audit_json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_example_audit_report(report))
+        if report["failed"] or report["total"] == 0:
+            raise SystemExit(1)
+        return
+    if args.capture_case_evidence:
+        if not args.manifest:
+            raise ValueError("--capture-case-evidence requires --manifest")
+        result = capture_case_evidence(
+            args.capture_case_evidence,
+            args.manifest,
+            expected_manifest_path=args.expected_manifest,
+            copy_manifest=args.copy_manifest,
+        )
+        print("Case evidence written: " + result["evidence_path"])
+        if result["copied_manifest"]:
+            print("Run manifest copied: " + result["copied_manifest"])
+        if result["validation_problems"]:
+            print("Manifest validation failed:")
+            for problem in result["validation_problems"]:
+                print("- " + problem)
+            raise SystemExit(1)
+        return
+    if args.regression_cases:
+        cases_dir = os.path.abspath(args.examples_dir) if args.examples_dir else os.path.join(ctx.script_dir, "examples")
+        report_file = os.path.abspath(args.regression_report) if args.regression_report else None
+        report = run_case_regression(ctx, cases_dir, tools=args.regression_tools, report_file=report_file)
+        if args.audit_json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_regression_report(report))
+        if report["failed"] or report["total"] == 0:
+            raise SystemExit(1)
+        return
+    if args.audit_prompts:
+        report = audit_prompt_templates()
+        if args.audit_json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_prompt_audit_report(report))
+        if report["failed"] or report["total"] == 0:
+            raise SystemExit(1)
+        return
     configure_llm_from_context(ctx)
     if args.rag_dump_index:
         dump_rag_index(ctx)

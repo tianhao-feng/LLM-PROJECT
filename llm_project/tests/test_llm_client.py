@@ -1,5 +1,7 @@
 import os
+import json
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 from autofpga.llm_client import LLMClient, LLMSettings
@@ -59,6 +61,32 @@ class LLMClientTests(unittest.TestCase):
             client = LLMClient(LLMSettings(embedding_provider="ollama"))
 
             self.assertEqual(client.embedding("hello"), [0.1, 0.2, 0.3])
+
+    def test_chat_trace_writes_prompt_and_response_jsonl(self):
+        root = os.path.join(os.path.dirname(os.path.dirname(__file__)), "codex_test_tmp", f"llm_trace_{uuid.uuid4().hex}")
+        trace_file = os.path.join(root, "trace.jsonl")
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = {"message": {"content": "local-ok"}}
+
+        with patch("requests.post", return_value=response):
+            client = LLMClient(
+                LLMSettings(
+                    provider="ollama",
+                    model="qwen2.5-coder:7b",
+                    base_url="http://localhost:11434",
+                    trace_enabled=True,
+                    trace_file=trace_file,
+                )
+            )
+            self.assertEqual(client.chat("hello"), "local-ok")
+
+        with open(trace_file, "r", encoding="utf-8") as f:
+            record = json.loads(f.readline())
+        self.assertEqual(record["kind"], "chat")
+        self.assertEqual(record["prompt"], "hello")
+        self.assertEqual(record["response"], "local-ok")
+        self.assertIn("prompt_sha256", record)
 
 
 if __name__ == "__main__":

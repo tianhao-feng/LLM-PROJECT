@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import time
 from dataclasses import dataclass
@@ -28,6 +30,8 @@ class LLMSettings:
     embedding_api_key_env: str = ""
     embedding_api_key: str = ""
     embedding_timeout: int = 30
+    trace_enabled: bool = False
+    trace_file: str = ""
 
 
 class LLMClient:
@@ -38,11 +42,17 @@ class LLMClient:
         provider = self.settings.provider.lower()
         if provider in {"deepseek", "openai", "openai_compatible", "cloud"}:
             print(f">>> 等待云端大模型推理: {self.settings.model}")
-            return self._chat_openai_compatible(prompt)
+            response = self._chat_openai_compatible(prompt)
+            self._write_trace("chat", prompt, response, provider)
+            return response
         if provider == "ollama":
             print(f">>> 等待本地 Ollama 模型推理: {self.settings.model}")
-            return self._chat_ollama(prompt)
-        return f"API 报错: 未支持的 LLM provider: {self.settings.provider}"
+            response = self._chat_ollama(prompt)
+            self._write_trace("chat", prompt, response, provider)
+            return response
+        response = f"API 报错: 未支持的 LLM provider: {self.settings.provider}"
+        self._write_trace("chat", prompt, response, provider)
+        return response
 
     def embedding(self, text, model=None):
         provider = self.settings.embedding_provider.lower()
@@ -155,6 +165,29 @@ class LLMClient:
         base = (base_url or "").rstrip("/")
         return base + suffix
 
+    def _write_trace(self, kind, prompt, response, provider):
+        if not self.settings.trace_enabled or not self.settings.trace_file:
+            return
+        record = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": kind,
+            "provider": provider,
+            "model": self.settings.model,
+            "temperature": self.settings.temperature,
+            "prompt_sha256": sha256_text(prompt),
+            "response_sha256": sha256_text(response),
+            "prompt": prompt,
+            "response": response,
+        }
+        try:
+            trace_dir = os.path.dirname(self.settings.trace_file)
+            if trace_dir:
+                os.makedirs(trace_dir, exist_ok=True)
+            with open(self.settings.trace_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
 
 _CLIENT = LLMClient()
 
@@ -180,6 +213,8 @@ def configure_llm_from_context(ctx):
             temperature=ctx.llm_temperature,
             timeout=ctx.llm_timeout,
             max_retries=ctx.llm_max_retries,
+            trace_enabled=ctx.llm_trace,
+            trace_file=ctx.llm_trace_file,
             embedding_provider=ctx.embedding_provider,
             embedding_model=ctx.embedding_model,
             embedding_base_url=ctx.embedding_base_url,
@@ -223,3 +258,7 @@ def query_ollama(prompt):
         return LLMClient(settings).chat(prompt)
     except Exception as exc:
         return f"网络请求异常: {exc}"
+
+
+def sha256_text(text):
+    return hashlib.sha256((text or "").encode("utf-8", errors="ignore")).hexdigest()

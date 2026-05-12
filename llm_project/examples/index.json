@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-10 15:51:12",
+  "registry_kind": "golden_cases",
+  "examples_dir": "examples",
+  "total": 2,
+  "passed": 2,
+  "failed": 0,
+  "problems": 0,
+  "results": [
+    {
+      "name": "counter_4bit",
+      "path": "counter_4bit",
+      "status": "passed",
+      "top_module": "counter_4bit_top",
+      "expected_top_module": "counter_4bit_top",
+      "testbench_module": "tb_counter_4bit_top",
+      "requirement_summary": "创建一个 Verilog-2001 FPGA 工程，实现一个 4 位同步计数器。要求包含 clk、rst_n、en、count[3:0] 和 overflow 端口；rst_n 为低有效异步复位；en 为高时在 clk 上升沿递增计数，en 为低时保持；计数从 0 到 15 后回...",
+      "src_files": [
+        "counter_4bit_core.v",
+        "counter_4bit_top.v"
+      ],
+      "src_file_count": 2,
+      "stable_files": {
+        "README.md": true,
+        "requirement.json": true,
+        "expected_manifest.json": true,
+        "tb_top_module.v": true,
+        "constraints.xdc": true
+      },
+      "expected_artifacts": [
+        "readme",
+        "testbench",
+        "constraints",
+        "bitstream",
+        "vivado_script",
+        "vivado_log",
+        "vivado_journal",
+        "vivado_project",
+        "utilization_report",
+        "timing_report",
+        "power_report"
+      ],
+      "expected_reports": {
+        "timing": {
+          "constraints_met": true
+        }
+      },
+      "has_run_evidence": false,
+      "has_run_manifest": false,
+      "validated_at": null,
+      "toolchain": {},
+      "flow_passed": {},
+      "warnings": [
+        "missing run_evidence.json",
+        "missing run_manifest.json"
+      ],
+      "problems": []
+    },
+    {
+      "name": "counter_load_updown",
+      "path": "counter_load_updown",
+      "status": "passed",
+      "top_module": "counter_load_updown_top",
+      "expected_top_module": "counter_load_updown_top",
+      "testbench_module": "tb_counter_load_updown_top",
+      "requirement_summary": "创建一个 Verilog-2001 FPGA 工程，实现一个 4 位可加载、可加减的同步计数器。必须生成顶层模块 counter_load_updown_top 和核心模块 counter_load_updown_core。顶层端口必须严格为：clk、rst_n、en、load、...",
+      "src_files": [
+        "counter_load_updown_core.v",
+        "counter_load_updown_top.v"
+      ],
+      "src_file_count": 2,
+      "stable_files": {
+        "README.md": true,
+        "requirement.json": true,
+        "expected_manifest.json": true,
+        "tb_top_module.v": true,
+        "constraints.xdc": true
+      },
+      "expected_artifacts": [
+        "readme",
+        "testbench",
+        "constraints",
+        "bitstream",
+        "vivado_script",
+        "vivado_log",
+        "vivado_journal",
+        "vivado_project",
+        "utilization_report",
+        "timing_report",
+        "power_report"
+      ],
+      "expected_reports": {
+        "timing": {
+          "constraints_met": true
+        }
+      },
+      "has_run_evidence": false,
+      "has_run_manifest": false,
+      "validated_at": null,
+      "toolchain": {},
+      "flow_passed": {},
+      "warnings": [
+        "missing run_evidence.json",
+        "missing run_manifest.json"
+      ],
+      "problems": []
+    }
+  ]
+}

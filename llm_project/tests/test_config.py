@@ -40,6 +40,9 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(ctx.rag_candidate_k, 20)
             self.assertFalse(ctx.rag_dry_run)
             self.assertEqual(ctx.rag_sources, ["datasheets", "knowledge_base"])
+            self.assertEqual(ctx.board_pins_file, os.path.join(tmp, "knowledge_base", "board_pins.json"))
+            self.assertFalse(ctx.llm_trace)
+            self.assertEqual(ctx.llm_trace_file, os.path.join(ctx.run_dir, "llm_trace.jsonl"))
 
     def test_build_context_accepts_tool_timeouts(self):
         tmp = reset_tmp("config_tool_timeouts")
@@ -55,6 +58,30 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(ctx.iverilog_timeout, 11)
         self.assertEqual(ctx.modelsim_timeout, 22)
         self.assertEqual(ctx.vivado_timeout, 33)
+
+    def test_build_context_accepts_custom_board_pins_file(self):
+        tmp = reset_tmp("config_board_pins")
+        ctx = build_context(
+            script_dir=tmp,
+            project_name="demo",
+            auto_timestamp=False,
+            board_pins_file="knowledge_base/boards/demo.json",
+        )
+
+        self.assertEqual(ctx.board_pins_file, os.path.join(tmp, "knowledge_base", "boards", "demo.json"))
+
+    def test_build_context_accepts_llm_trace_file(self):
+        tmp = reset_tmp("config_llm_trace")
+        ctx = build_context(
+            script_dir=tmp,
+            project_name="demo",
+            auto_timestamp=False,
+            llm_trace=True,
+            llm_trace_file="runs/custom_trace.jsonl",
+        )
+
+        self.assertTrue(ctx.llm_trace)
+        self.assertEqual(ctx.llm_trace_file, os.path.join(tmp, "runs", "custom_trace.jsonl"))
 
     def test_build_only_requires_explicit_project_dir(self):
         tmp = reset_tmp("config_build_only_required")
